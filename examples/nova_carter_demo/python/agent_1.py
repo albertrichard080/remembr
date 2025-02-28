@@ -6,10 +6,10 @@ from std_msgs.msg import String
 from remembr.memory.milvus_memory import MilvusMemory
 from remembr.agents.remembr_agent import ReMEmbRAgent
 from scipy.spatial.transform import Rotation as R
-
-
 from common_utils import format_pose_msg
-
+import numpy as np
+import traceback
+import json
 
 class AgentNode(Node):
 
@@ -23,7 +23,7 @@ class AgentNode(Node):
         self.declare_parameter("pose_topic", "/amcl_pose")
         self.declare_parameter("goal_pose_topic", "/goal_pose")
 
-        # look for "robot" keyword
+        # Look for "robot" keyword
         self.query_filter = lambda text: "robot" in text.lower()
 
         self.query_subscriber = self.create_subscription(
@@ -53,33 +53,44 @@ class AgentNode(Node):
         self.agent = ReMEmbRAgent(
             llm_type=self.get_parameter("llm_type").value
         )
-        self.agent.set_memory(self.memory) #added self
+        self.agent.set_memory(self.memory)  # Set memory for the agent
 
         self.last_pose = None
         self.logger = self.get_logger()
-        
 
     def query_callback(self, msg: String):
-        
         if not self.query_filter(msg.data):
-            logger.info("Skipping query {msg.data} because it does not have keyword")
+            self.logger.info(f"Skipping query {msg.data} because it does not have keyword")
             return 
 
         try:
-            query = msg.data 
+            query = msg.data
 
-            # Add additional context information to query
+            # Add additional context information to query if a pose is available
             if self.last_pose is not None:
-                position, angle, current_time = format_pose_msg(self.last_pose)
-                query +=  f"\nYou are currently located at {position} and the time is {self.current_time}."
+                position, angle, pose_time = format_pose_msg(self.last_pose)
+                # Get the current time from the node's clock
+                current_time_msg = self.get_clock().now().to_msg()
+                # Format the current time as a string (e.g., "seconds.nanoseconds")
+                current_time = f"{current_time_msg.sec}.{current_time_msg.nanosec}"
+                query += f"\nYou are currently located at {position} and the time is {current_time}."
 
             # Run the Remembr Agent
             response = self.agent.query(query)
             
+            # Handle the orientation (convert from string to list of floats)
+            try:
+                # Use ast.literal_eval for safe conversion if the orientation is a string representation
+                import ast
+                orientation = ast.literal_eval(response.orientation)
+                quat = R.from_euler('z', orientation[2]).as_quat()  # Use only z-axis rotation if needed
+                quat = np.squeeze(quat)
+            except Exception as e:
+                self.logger.error(f"Failed to parse orientation: {response.orientation}. Error: {e}")
+                quat = [0.0, 0.0, 0.0, 1.0]  # Default to no rotation if parsing fails
+
             # Generate the goal pose from the response
             position = response.position
-            quat = R.from_euler('z', response.orientation).as_quat()
-            quat = np.squeeze(quat)
             goal_pose = PoseStamped()
             goal_pose.header.frame_id = 'map'
             goal_pose.header.stamp = self.get_clock().now().to_msg()
@@ -98,9 +109,9 @@ class AgentNode(Node):
             self.logger.info(f"\tOrientation: {response.orientation}")
         
             self.goal_pose_publisher.publish(goal_pose)
-        except:
-            print("FAILED. Returning")
-            print(traceback.format_exc())
+        except Exception as e:
+            self.logger.error(f"FAILED. Returning: {str(e)}")
+            self.logger.error(traceback.format_exc())
             return
 
     def pose_callback(self, msg: PoseWithCovarianceStamped):
@@ -117,3 +128,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+

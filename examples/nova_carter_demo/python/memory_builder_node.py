@@ -5,6 +5,7 @@ from std_msgs.msg import String
 from scipy.spatial.transform import Rotation as R
 from remembr.memory.memory import MemoryItem
 from remembr.memory.milvus_memory import MilvusMemory
+#from langchain_milvus import MilvusVectorStore
 
 from common_utils import format_pose_msg
 
@@ -15,9 +16,8 @@ class MemoryBuilderNode(Node):
     def __init__(self):
         super().__init__("MemoryBuilderNode")
 
-        self.declare_parameter("db_collection", "test_collection")
+        self.declare_parameter("db_collection", "test_5_collection")
         self.declare_parameter("db_ip", "127.0.0.1")
-
         self.declare_parameter("pose_topic", "/amcl_pose")
         self.declare_parameter("caption_topic", "/caption")
 
@@ -31,25 +31,26 @@ class MemoryBuilderNode(Node):
         self.caption_subscriber = self.create_subscription(
             String,
             self.get_parameter("caption_topic").value,
-            self.query_callback,
+            self.caption_callback,  #query_callback
             10
         )
         self.memory = MilvusMemory(
             self.get_parameter("db_collection").value,
             self.get_parameter("db_ip").value
         )
-
+        #self.memory.reset() #To rest the data base
         self.pose_msg = None
         self.caption_msg = None
         self.logger = self.get_logger()
 
     def pose_callback(self, msg: PoseWithCovarianceStamped):
         self.pose_msg = msg
-
+        print("Received pose message")
+        
     def caption_callback(self, msg: String):
-
+        print("Caption callback triggered")
         if self.pose_msg is not None:
-
+            print("Received caption message with pose available")
             position, angle, pose_time = format_pose_msg(self.pose_msg)
 
             memory = MemoryItem(
@@ -58,7 +59,7 @@ class MemoryBuilderNode(Node):
                 position=position,
                 theta=angle
             )
-
+            print("Adding memory:", memory)
             self.logger.info(f"Added memory item {memory}")
 
             self.memory.insert(memory)

@@ -6,10 +6,10 @@ from std_msgs.msg import String
 from remembr.memory.milvus_memory import MilvusMemory
 from remembr.agents.remembr_agent import ReMEmbRAgent
 from scipy.spatial.transform import Rotation as R
-
-
 from common_utils import format_pose_msg
-
+import numpy as np
+import traceback  # Import traceback module
+import json
 
 class AgentNode(Node):
 
@@ -17,7 +17,7 @@ class AgentNode(Node):
         super().__init__("AgentNode")
 
         self.declare_parameter("llm_type", "llama3.1:8b")
-        self.declare_parameter("db_collection", "test_4_collection")
+        self.declare_parameter("db_collection", "test_5_collection")
         self.declare_parameter("db_ip", "127.0.0.1")
         self.declare_parameter("query_topic", "/speech")
         self.declare_parameter("pose_topic", "/amcl_pose")
@@ -53,16 +53,15 @@ class AgentNode(Node):
         self.agent = ReMEmbRAgent(
             llm_type=self.get_parameter("llm_type").value
         )
-        self.agent.set_memory(self.memory) #added self
+        self.agent.set_memory(self.memory)  # Fixed here, passing self.memory
 
         self.last_pose = None
         self.logger = self.get_logger()
-        
 
     def query_callback(self, msg: String):
         
         if not self.query_filter(msg.data):
-            logger.info("Skipping query {msg.data} because it does not have keyword")
+            self.logger.info(f"Skipping query {msg.data} because it does not have keyword")
             return 
 
         try:
@@ -76,10 +75,17 @@ class AgentNode(Node):
             # Run the Remembr Agent
             response = self.agent.query(query)
             
+            # Handle the orientation (convert from string to list of floats)
+            try:
+                orientation = eval(response.orientation)  # Convert the string to a list
+                quat = R.from_euler('z', orientation[2]).as_quat()  # Use only z-axis rotation if needed
+                quat = np.squeeze(quat)
+            except:
+                self.logger.error(f"Failed to parse orientation: {response.orientation}")
+                quat = [0.0, 0.0, 0.0, 1.0]  # Default to no rotation if parsing fails
+
             # Generate the goal pose from the response
             position = response.position
-            quat = R.from_euler('z', response.orientation).as_quat()
-            quat = np.squeeze(quat)
             goal_pose = PoseStamped()
             goal_pose.header.frame_id = 'map'
             goal_pose.header.stamp = self.get_clock().now().to_msg()
@@ -98,9 +104,9 @@ class AgentNode(Node):
             self.logger.info(f"\tOrientation: {response.orientation}")
         
             self.goal_pose_publisher.publish(goal_pose)
-        except:
-            print("FAILED. Returning")
-            print(traceback.format_exc())
+        except Exception as e:
+            self.logger.error(f"FAILED. Returning: {str(e)}")
+            self.logger.error(traceback.format_exc())
             return
 
     def pose_callback(self, msg: PoseWithCovarianceStamped):
@@ -117,3 +123,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+

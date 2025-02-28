@@ -1,3 +1,7 @@
+from geometry_msgs.msg import PoseWithCovarianceStamped
+import numpy as np
+from scipy.spatial.transform import Rotation as R
+
 def format_pose_msg(msg: PoseWithCovarianceStamped):
 
     position = np.array([
@@ -13,9 +17,9 @@ def format_pose_msg(msg: PoseWithCovarianceStamped):
         msg.pose.pose.orientation.w
     ])
 
-    euler_rot_z = R.from_quat(quat).as_euler('xyz')[-1] # take z rotation
+    angle = R.from_quat(quat).as_euler('xyz')[-1] # take z rotation #euler_rot_z
 
-    stamp = odom_msg.header.stamp
+    stamp = msg.header.stamp #odom_msg.header.stamp
     converted_time = float(str(stamp.sec) + '.' + str(stamp.nanosec))
     
 

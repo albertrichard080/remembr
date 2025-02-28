@@ -66,7 +66,7 @@ class ROSMemoryBuilder(Node):
 
     def __init__(self, args, segment_time=3, \
                 image_topic='/front_stereo_camera/left/image_raw', \
-                collection_name="test", db_ip="127.0.0.1", \
+                collection_name="test_1", db_ip="127.0.0.1", \
                 pos_topic='/amcl_pose', queue_size=1000):
         
         super().__init__('minimal_subscriber')
@@ -98,7 +98,7 @@ class ROSMemoryBuilder(Node):
                 self.img_listener_callback,
                 10)
 
-        if 'odom' in pos_topic:
+        if 'chassis/odom' in pos_topic:
             self.pose_sub = self.create_subscription(
                 Odometry,
                 pos_topic,
@@ -222,7 +222,7 @@ class ROSMemoryBuilder(Node):
 
 def main(args=None):
     print("Starting")
-
+    rclpy.init()
     args = memory_builder_args(args)
 
     mem_builder = ROSMemoryBuilder(args)

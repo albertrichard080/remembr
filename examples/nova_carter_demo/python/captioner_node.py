@@ -18,7 +18,7 @@ class CaptionerNode(Node):
     def __init__(self):
         super().__init__("CaptionerNode")
 
-        self.declare_parameter("model", "Efficient-Large-Model/VILA1.5-3B")
+        self.declare_parameter("model", "Efficient-Large-Model/VILA1.5-3b")
         self.declare_parameter("image_topic", "/front_stereo_camera/left/image_raw")
         self.declare_parameter("caption_topic", "/caption")
         self.declare_parameter(

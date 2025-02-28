@@ -197,7 +197,7 @@ if __name__ == '__main__':
     parser.add_argument("--chatbot_host_port", type=int, default=7860)
 
     # Options: 'nim/meta/llama-3.1-405b-instruct', 'gpt-4o', or any Ollama LLMs
-    parser.add_argument("--llm_backend", type=str, default='codestral')
+    parser.add_argument("--llm_backend", type=str, default='llama3.1:8b') #codestral
 
     parser.add_argument("--rosbag_enabled", action='store_true')
 
